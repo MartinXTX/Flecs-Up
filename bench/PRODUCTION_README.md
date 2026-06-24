@@ -1,40 +1,40 @@
 # Flecs Performance Edition — Production Bundle
 
-> Tarih: 2026-06-20
-> Durum: Production-ready, 24 Tier patch aktif ve stabil
-> Test ortamı: MSVC 19.50 /O2, Windows 11 x64
+> **Date:** 2026-06-20
+> **Status:** Production-ready, 24 Tier patches active and stable
+> **Test environment:** MSVC 19.50 /O2, Windows 11 x64
 
-## Hızlı Başlangıç
+## Quick Start
 
 ```bash
-# Build (LTCG'siz /O2)
+# Build (without LTCG /O2)
 cd bench
 build_final2.bat
 
-# Veya tek başına patched build
+# Or standalone patched build
 build_patched_only.bat
 
-# Benchmark çalıştır
+# Run benchmark
 bench_patched.exe 1000
 ```
 
-## Tier Patch'ler (24 Tier)
+## Tier Patches (24 Tiers)
 
-### S-Tier — Ölçülen büyük kazanım, üretim için güvenli
+### S-Tier — Measured large gains, production-safe
 
-| Tier | Patch | Tipik Kazanç | Senaryo |
+| Tier | Patch | Typical Gain | Scenario |
 |---|---|---|---|
 | **I1** | Batched add/remove API | **+%276-330** | [F] archetype_churn_dense |
 | **FF1** | `flecs_entity_index_get` cache | **+%90** | [M] bulk_delete |
 | **CC1** | `ecs_bulk_set_id` same-archetype fast path | **+%130** | [L] bulk_set_value |
-| **A1.1** | Hibrit dispatch (EcsDontFragment) | **+%180** | [B] archetype_churn |
+| **A1.1** | Hybrid dispatch (EcsDontFragment) | **+%180** | [B] archetype_churn |
 | **P1** | Bulk delete API | **+%216** | [M] bulk_delete |
 | **R1** | Bulk new with values | **+%280** | [N] bulk_new_w_value |
 | **O1** | Bulk set_id API | **+%77** | [L] bulk_set_value |
 
-### A/B-Tier — İyi etki, üretim için güvenli
+### A/B-Tier — Good impact, production-safe
 
-| Tier | Patch | Kazanç |
+| Tier | Patch | Gain |
 |---|---|---|
 | A1.2 | `ECS_DATA_COMPONENT` auto-heuristic | +%153 |
 | C2 | Software prefetch | +%15-74 |
@@ -47,30 +47,30 @@ bench_patched.exe 1000
 | II1 v2 | traverse_add edge cache | +%1-2 |
 | Y1 | World struct hot-field cluster | +%3-5 |
 
-### C-Tier — User-opt-in veya düşük etki
+### C-Tier — User-opt-in or low impact
 
-| Tier | Patch | Not |
+| Tier | Patch | Note |
 |---|---|---|
 | X1 | `ecs_fields()` batched prefetch | User-opt-in macro |
 | AA1 | flecs_add_id DontFragment early-out | Branch predict |
 | BB1 | bulk memset intrinsics | Optimal memset |
-| DD1 | defer queue comment | Dökümentasyon |
+| DD1 | defer queue comment | Documentation |
 | EE1 | `ecs_add_ids_w_entities` API | Bulk migration API |
-| N1 | Warmup itersyonları | Varyans azaltır |
-| T2 | Full-lifecycle benchmark | Kombinasyon senaryosu |
+| N1 | Warmup iterations | Variance reduction |
+| T2 | Full-lifecycle benchmark | Combined scenario |
 
-### REVERTED — Kullanmayın
+### REVERTED — Do not use
 
-| Tier | Sebep |
+| Tier | Reason |
 |---|---|
-| D2 (LTCG) | [A] iter'da cold-code separation overhead |
+| D2 (LTCG) | [A] iter cold-code separation overhead |
 | E1 (multi-line prefetch) | L1 pollution, [A] -%15 |
 | MM1 (bulk entity prefetch) | table NULL segfault |
 | LL1 (4-slot edge cache) | Register pressure |
-| II1 v1 (eski traverse cache) | Stale edge diff cache |
-| B2 (batched version) | Observer dirty tracking bozulur |
+| II1 v1 (old traverse cache) | Stale edge diff cache |
+| B2 (batched version) | Observer dirty tracking breaks |
 
-## Public API Eklentileri (Production Stabil)
+## Public API Additions (Production Stable)
 
 ```c
 /* Tier-I1: Batched add/remove */
@@ -109,17 +109,17 @@ void ecs_fields_prefetch(const ecs_iter_t *it);
 #define ecs_fields(it) ecs_fields_prefetch((it))
 ```
 
-## Benchmark Senaryoları (A-O)
+## Benchmark Scenarios (A-O)
 
-15 senaryo, 16. satırda:
+15 scenarios, in row 16:
 
 - **[A]** iter throughput (single-table)
 - **[B]** archetype churn (EcsDontFragment)
 - **[C]** lifecycle (create + delete)
-- **[D]** large world iter (1M entity, 8 archetype)
+- **[D]** large world iter (1M entity, 8 archetypes)
 - **[E]** observer_heavy
 - **[F]** archetype_churn_dense (no sparse)
-- **[G]** bulk_set (5 component)
+- **[G]** bulk_set (5 components)
 - **[H]** multi_arch_query
 - **[I]** bulk_create_with_add
 - **[J]** single_bulk_set
@@ -127,11 +127,11 @@ void ecs_fields_prefetch(const ecs_iter_t *it);
 - **[L]** bulk_set_value (Tier-CC1)
 - **[M]** bulk_delete (Tier-P1)
 - **[N]** bulk_new_w_value (Tier-R1)
-- **[O]** full_lifecycle_bulk (Tier-T2 kombinasyon)
+- **[O]** full_lifecycle_bulk (Tier-T2 combined)
 
-## Final Ölçüm Sonuçları (5x run ortanca)
+## Final Measurement Results (5x run median)
 
-| Senaryo | Baseline | Patched | Kazanç |
+| Scenario | Baseline | Patched | Gain |
 |---|---|---|---|
 | [A] iter throughput | ~1100-1170 | 1154 M ent/sec | +%5-7 |
 | [B] archetype churn | ~8 | 17.5 M ops/sec | +%106-119 |
@@ -141,52 +141,52 @@ void ecs_fields_prefetch(const ecs_iter_t *it);
 | [N] bulk_new_w_value | ~5.5 | 23.5 M ent/sec | +%327 |
 | [O] full_lifecycle_bulk | ~9.5 | 17.1 M ops/sec | +%71-90 |
 
-## Build Yapılandırması
+## Build Configuration
 
-**Önerilen:** `/O2` (LTCG'siz). LTCG regression yaratıyor.
+**Recommended:** `/O2` (without LTCG). LTCG causes regression.
 
 ```bat
 cl /O2 /W3 /D_CRT_SECURE_NO_WARNINGS /DFLECS_PATCHED_BUILD /I . ^
    bench_flecs.c flecs_patched.c /Fe:bench_patched.exe
 ```
 
-**Production kütüphane:**
+**Production library:**
 ```bat
 cl /O2 /W3 /D_CRT_SECURE_NO_WARNINGS /DFLECS_PATCHED_BUILD /I . ^
    /c flecs_patched.c /Fo:release\flecs.obj
 ```
 
-## Doğruluk Garantileri
+## Correctness Guarantees
 
-- **Tier-CC1 correctness check** her 100. iterasyonda ilk 10 entity'nin değerlerini doğrular
-- **Tier-FF1 invalidation** `ecs_delete` ve `ecs_bulk_delete` sonunda cache temizler
-- **Tier-J2 invalidation** lookup miss'te otomatik olarak cache'i günceller
-- **Tier-Z1 edge cache** single-slot olup (table) eşleşmesinde stale olmaz
+- **Tier-CC1 correctness check** verifies first 10 entities' values every 100 iterations
+- **Tier-FF1 invalidation** clears cache after `ecs_delete` and `ecs_bulk_delete`
+- **Tier-J2 invalidation** automatically updates cache on lookup miss
+- **Tier-Z1 edge cache** is single-slot; (table) match prevents staleness
 
-## Bilinen Sınırlamalar
+## Known Limitations
 
-- **Run-to-run varyans** %5-50 (Tier-N1 warmup ile azaltılır)
-- **Tier-J2/FF1** tek-slot cache, sadece ardışık aynı lookup'ta etkili
-- **Tier-CC1 precondition:** tüm entity'ler aynı archetype'te olmalı
-- **Tier-FF1 bulk invalidation:** ~%5 maliyet ama doğruluk garantili
+- **Run-to-run variance** %5-50 (reduced with Tier-N1 warmup)
+- **Tier-J2/FF1** single-slot cache, only effective for consecutive same lookups
+- **Tier-CC1 precondition:** all entities must be in the same archetype
+- **Tier-FF1 bulk invalidation:** ~%5 cost but correctness guaranteed
 
-## Dosyalar
+## Files
 
-- `bench/flecs_patched.c` — Tüm Tier patch'ler
-- `bench/flecs_patched.h` — Public API eklentileri
-- `bench/bench_flecs.c` — 15 senaryo + correctness check
+- `bench/flecs_patched.c` — All Tier patches
+- `bench/flecs_patched.h` — Public API additions
+- `bench/bench_flecs.c` — 15 scenarios + correctness check
 - `bench/build_final2.bat` — Build script
-- `TIER_RESULTS.md` — Detaylı Tier ölçüm sonuçları
-- `bench/PRODUCTION_README.md` — Bu dosya
+- `TIER_RESULTS.md` — Detailed Tier measurement results
+- `bench/PRODUCTION_README.md` — This file
 
 ## Test
 
 ```bash
-# Build ve benchmark
+# Build and benchmark
 cd bench
 build_final2.bat
 
-# Beklenen sonuçlar (5x run ortanca):
+# Expected results (5x run median):
 # [A] ~1154 M ent/sec
 # [B] ~17.5 M ops/sec
 # [F] ~34.0 M ops/sec
@@ -196,4 +196,4 @@ build_final2.bat
 # [O] ~17.1 M ops/sec
 ```
 
-Başarılar!
+Good luck!
