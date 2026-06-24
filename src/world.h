@@ -82,8 +82,12 @@ typedef struct ecs_action_elem_t {
 typedef struct ecs_pipeline_state_t ecs_pipeline_state_t;
 
 /** The world stores and manages all ECS data. An application can have more than
- * one world, but data is not shared between worlds. */
-struct ecs_world_t {
+ * one world, but data is not shared between worlds.
+ *
+ * E3: Aligned to 64B cache line. The world is the root container accessed
+ * by every entity/component/table operation. Keeping it on its own line
+ * prevents neighbor structs from stealing its cache slots. */
+ECS_CACHE_LINE_ALIGN_ struct ecs_world_t {
     ecs_header_t hdr;
 
     /* --  Type metadata -- */

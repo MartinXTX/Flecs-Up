@@ -835,7 +835,10 @@ struct ecs_term_t {
 /** Queries are lists of constraints (terms) that match entities. 
  * Created with ecs_query_init().
  */
-struct ecs_query_t {
+/* E3: Aligned to 64B cache line. Queries are mutated by the cache builder
+ * and read on every ecs_query_next() iteration; alignment avoids false
+ * sharing when multiple threads iterate different queries. */
+ECS_CACHE_LINE_ALIGN_ struct ecs_query_t {
     ecs_header_t hdr;           /**< Object header. */
 
     ecs_term_t *terms;          /**< Query terms. */

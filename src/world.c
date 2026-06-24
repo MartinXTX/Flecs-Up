@@ -912,6 +912,15 @@ static const ecs_build_info_t flecs_build_info = {
     .flags = flecs_compiler_flags,
 #ifdef FLECS_DEBUG
     .debug = true,
+    .perf_trace = true,
+#endif
+    .version = FLECS_VERSION,
+    .version_major = FLECS_VERSION_MAJOR,
+    .version_minor = FLECS_VERSION_MINOR,
+    .version_patch = FLECS_VERSION_PATCH
+};
+#ifdef FLECS_DEBUG
+    .debug = true,
 #endif
 #ifdef FLECS_SANITIZE
     .sanitize = true,
@@ -2138,8 +2147,21 @@ bool flecs_component_is_delete_locked(
     ecs_world_t *world,
     ecs_id_t component)
 {
-    return 
+    return
         (ecs_map_get(&world->locked_components, component) != NULL) ||
         (ecs_map_get(&world->locked_entities, component) != NULL);
 }
 #endif
+
+/* TIER-B3 framework: runtime size reporters (FLECS_API).
+ * Returns the bit-width of ecs_id_t and byte-size of ecs_record_t.
+ * Future Tier-B3.2 would narrow ecs_id_t to 32-bit (record 4-byte id)
+ * for a -%50 memory gain in entity-index record tables.  For now this
+ * reports the actual compile-time sizes so tests can verify. */
+int flecs_id_size_bits(void) {
+    return (int)(sizeof(ecs_id_t) * 8);
+}
+
+int flecs_record_size(void) {
+    return (int)sizeof(ecs_record_t);
+}

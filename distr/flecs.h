@@ -382,6 +382,7 @@ extern "C" {
 #define EcsWorldMeasureSystemTime     (1u << 6)
 #define EcsWorldMultiThreaded         (1u << 7)
 #define EcsWorldFrameInProgress       (1u << 8)
+#define EcsWorldAutoDontFragment      (1u << 9) /* TIER-A1.3: opt-in auto-detect */
 
 ////////////////////////////////////////////////////////////////////////////////
 //// OS API flags
@@ -4790,6 +4791,15 @@ typedef struct ecs_query_iter_t {
     bool iter_single_group;
 } ecs_query_iter_t;
 
+/* TIER-X1+ V2: Per-field cache entry. Stores the resolved column data
+ * pointer + size, keyed by the table it was resolved for. Synced from
+ * upstream patch — required by Tier-v16 BULGU-08 v2 field cache. */
+typedef struct ecs_field_cache_entry_t {
+    ecs_table_t *table;           /* Table this cache entry is for. NULL = empty. */
+    void *data;                   /* Pre-resolved column data pointer. */
+    ecs_size_t size;              /* Component size for ECS_ELEM offset multiply. */
+} ecs_field_cache_entry_t;
+
 /* Private iterator data. Used by iterator implementations to keep track of
  * progress and to provide built-in storage. */
 typedef struct ecs_iter_private_t {
@@ -4802,6 +4812,7 @@ typedef struct ecs_iter_private_t {
 
     void *entity_iter;            /* Query applied after matching a table. */
     ecs_stack_cursor_t *stack_cursor; /* Stack cursor to restore to. */
+    ecs_field_cache_entry_t field_cache[FLECS_TERM_COUNT_MAX]; /* TIER-X1+ V2 */
 } ecs_iter_private_t;
 
 /* Data structures that store the command queue. */

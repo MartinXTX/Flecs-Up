@@ -789,6 +789,18 @@ bool ecs_os_has_dl(void);
 FLECS_API
 bool ecs_os_has_modules(void);
 
+/* E2: Huge page allocation helpers (>= 2MB, falls back to ordinary malloc
+ * when huge pages are unavailable or for smaller allocs).
+ * Must be paired with flecs_os_free_huge, NOT ecs_os_free. */
+FLECS_API
+void* flecs_os_malloc_huge(
+    ecs_size_t size);
+
+FLECS_API
+void flecs_os_free_huge(
+    void *ptr,
+    ecs_size_t size);
+
 #ifdef __cplusplus
 }
 #endif

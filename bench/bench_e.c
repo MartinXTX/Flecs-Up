@@ -1,0 +1,70 @@
+/* Just scenario E, in isolation */
+#include "../distr/flecs_no_addons.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <windows.h>
+static double now_sec(void) {
+    static LARGE_INTEGER freq = {0};
+    LARGE_INTEGER t;
+    if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&t);
+    return (double)t.QuadPart / (double)freq.QuadPart;
+}
+#endif
+
+typedef struct { int v; } EA;
+typedef struct { int v; } EB;
+typedef struct { int v; } EC;
+typedef struct { int v; } ED;
+
+int main(int argc, char **argv) {
+    int n = (argc > 1) ? atoi(argv[1]) : 200;
+    ecs_world_t *world = ecs_init();
+    ECS_COMPONENT(world, EA);
+    ECS_COMPONENT(world, EB);
+    ECS_COMPONENT(world, EC);
+    ECS_COMPONENT(world, ED);
+
+    const int N = 10000;
+    ecs_entity_t *es = ecs_os_malloc_n(ecs_entity_t, N);
+    for (int i = 0; i < N; i++) {
+        es[i] = ecs_new(world);
+        if (i & 1) ecs_add(world, es[i], EA);
+        if (i & 2) ecs_add(world, es[i], EB);
+        if (i & 4) ecs_add(world, es[i], EC);
+        if (i & 8) ecs_add(world, es[i], ED);
+    }
+
+    ecs_query_t *q_ea = ecs_query(world, { .terms = {{ .id = ecs_id(EA) }} });
+    ecs_query_t *q_eb = ecs_query(world, { .terms = {{ .id = ecs_id(EB) }} });
+
+    double t = 0;
+    long long hits = 0;
+    for (int it = 0; it < n; it++) {
+        ecs_iter_t itea = ecs_query_iter(world, q_ea);
+        ecs_iter_t iteb = ecs_query_iter(world, q_eb);
+        double t0 = now_sec();
+        while (ecs_query_next(&itea)) {
+            EA *p = ecs_field(&itea, EA, 0); (void)p;
+            hits += itea.count;
+        }
+        while (ecs_query_next(&iteb)) {
+            EB *p = ecs_field(&iteb, EB, 0); (void)p;
+            hits += iteb.count;
+        }
+        t += now_sec() - t0;
+    }
+    printf("[E-only] many_archetypes: %d varlik, 16 archetype | "
+           "iter (2 sorgu x %d): %.3f sec | %.1f M ent/sec iter\n",
+           N, n, t, ((double)hits / t) / 1e6);
+
+    ecs_query_fini(q_ea);
+    ecs_query_fini(q_eb);
+    ecs_os_free(es);
+    ecs_fini(world);
+    return 0;
+}

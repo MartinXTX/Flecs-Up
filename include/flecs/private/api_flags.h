@@ -24,6 +24,7 @@ extern "C" {
 #define EcsWorldMeasureSystemTime     (1u << 6)
 #define EcsWorldMultiThreaded         (1u << 7)
 #define EcsWorldFrameInProgress       (1u << 8)
+#define EcsWorldAutoDontFragment      (1u << 9) /* TIER-A1.3: opt-in auto-detect */
 
 ////////////////////////////////////////////////////////////////////////////////
 //// OS API flags
@@ -247,6 +248,7 @@ extern "C" {
 #define EcsTableOverrideDontFragment   (1u << 23u)
 #define EcsTableHasOrderedChildren     (1u << 24u)
 #define EcsTableHasOverrides           (1u << 25u)
+#define EcsTableIsTiny                 (1u << 26u) /* TIER-B2: tiny archetype (<=2 cols, no pairs, no overrides). entities + columns share a single alloc chunk. */
 
 #define EcsTableHasTraversable         (1u << 27u)
 #define EcsTableEdgeReparent           (1u << 28u)

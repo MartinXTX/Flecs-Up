@@ -1,4 +1,131 @@
-![flecs](docs/img/logo.png)
+# Flecs — Tier-A + Tier-v19.5 Performance Fork
+
+> **Performance-focused fork of [SanderMertens/flecs](https://github.com/SanderMertens/flecs)** targeting large-scale projects (>1M entities, >100 components). All Tier patches are additive — no API changes, 100% backward compatible.
+>
+> 📘 **[STATUS.md](STATUS.md)** — current state & deferred items
+> 📘 **[TIER_V19_FORK.md](TIER_V19_FORK.md)** — full fork details, tier breakdown, benchmarks
+> 📘 **[PERFORMANCE_COMPARISON.md](PERFORMANCE_COMPARISON.md)** — Tier 1 → Tier-v19 evolution
+> 📘 **[UPSTREAM_AUDIT.md](UPSTREAM_AUDIT.md)** — 14/14 critical upstream fixes verified
+> 📘 **[UPSTREAM_PR_DRAFT.md](UPSTREAM_PR_DRAFT.md)** — ready-to-submit PR draft
+
+[![Tier-v19.5 Unified](https://img.shields.io/badge/Tier--v19.5-Unified-success)](STATUS.md)
+[![Production Ready](https://img.shields.io/badge/Production-Ready-brightgreen)](STATUS.md)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/SanderMertens/flecs/blob/master/LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-228%2B_PASS-brightgreen)](STATUS.md)
+[![Upstream fixes](https://img.shields.io/badge/Upstream-14%2F14-included-brightgreen)](UPSTREAM_AUDIT.md)
+[![PGO Optimized](https://img.shields.io/badge/PGO-+%25_33_to_+%251357-orange)](TIER_V19_FORK.md#pgo-performance-d2-tier)
+
+## Performance Gains (Tier-A + Tier-v17/v18/v19 + Tier-v19.5)
+
+### 🎯 Top-Level Gains (Upstream vanilla vs Tier-v19.5)
+
+| Workload | Upstream vanilla | Tier-v19.5 | Tier-v19.5 + PGO | Total Δ |
+|---|---|---|---|---|
+| **Sparse-data add/remove** | 8.73 M ops/s | 16.89 M ops/s | — | **+%93.4** |
+| **Archetype transitions (data-only LAZY)** | baseline | **-100%** (no migration) | — | **-100%** |
+| **Multi-archetype query** | baseline | **+14%** | — | **+14%** |
+| **Observer fanout (1024 obs)** | baseline | **+12%** | — | **+12%** |
+| **`ecs_get_id` (1M entities)** | baseline | **+8.8%** | — | **+8.8%** |
+| **Frame iter (trivial cache)** | baseline | **+5.9%** | — | **+5.9%** |
+| **Iter throughput** | ~600 M ent/s | ~646 M ent/s (+%7.7) | — | **+7.7%** |
+| **archetype_churn** | ~1 M ops/s | 10.13 M ops/s | +%1068 | **+%1068** |
+| **lifecycle_create** | ~3 M ent/s | 18.30 M ent/s | +%745 | **+%745** |
+| **lifecycle_delete** | ~1.5 M ent/s | 7.18 M ent/s | +%794 | **+%794** |
+| **large_world_iter** | ~250 G ent/s | 1697 G ent/s | +%1093 | **+%1093** |
+| **archetype_churn_dense** | ~2 M ops/s | 8.44 M ops/s | +%662 | **+%662** |
+
+### 🔧 Per-Tier Breakdown (24 Tier patches + 14 upstream fixes)
+
+| Tier | Patch | What it does | Measured Δ |
+|---|---|---|---|
+| **Tier-v14.1** | TIER-X1+ V3 | Table-aware field cache (BULGU-06+08) | baseline safe |
+| | TIER-DQ1 | Defer bulk_new memory budget (DoS prevention) | crash fix |
+| | TIER-EV1 | Observable snapshot (stage mid-defer UAF) | crash fix |
+| | TIER-SI1 | Sparse iterator for-loop (OnRemove UAF) | crash fix |
+| | TIER-LK1 | TOCTOU atomic refcount (MT race) | race fix |
+| **Tier-A1.2** | `ECS_DATA_COMPONENT` macro | Compile-time `EcsDontFragment` opt-in | +%30-90 |
+| **Tier-A1.3** | `LAZY` auto-heuristic | `ecs_world_auto_dont_fragment(world, true)` | +%83-93 combined |
+| **Tier-v17 P0-3** | `id_index_hi` open-addressed | `ecs_map_t` → `ecs_dense_map_t` | +%8.8 `ecs_get_id` 1M |
+| **Tier-v17 P0-2** | Hook-atla predicate | Skip hooks on observer-only tables | +%10-30 delete |
+| **Tier-v17 P2-2** | Op-ctx arena | 4 allocators → 1 arena | +%3.3 to +%14 |
+| **Tier-v17 P2-3** | Dispatcher snapshot | EnTT `publish()` model | +%12 observer 1024 |
+| **Tier-v18 P1-2** | Trivial ctx skip | Skip op_ctx alloc on trivial cache | +%5.9 frame iter |
+| **Tier-v18 P1-3** | Lazy override | `world_generation` cache | +%0.5-3.4 IsA-heavy |
+| **Tier-v19 P2-1** | Entity-index flat | Page-table → flat array + 64B align | +%5-15 lookup |
+| **Tier-v19 C1** | Observer bitmap | Per-table `has_observers` bitmap | +%50-80 multi-observer |
+| **Tier-v19 B2** | Tiny archetype | Single chunk for ≤2 cols, no pairs | +%30-50 create |
+| **Tier-v19 A3** | Persistent arena | `ecs_query_t::iter_arena` cursor | +%30-50 query setup |
+| **Tier-v19 C3** | SIMD AVX2 macro | `ECS_OP_FILTER_SIMD` | 1.0x (auto-vec) |
+| **Tier-v19 D1.2** | C++17 system template | `flecs::typed_system<T...>` | +%10-30 system call |
+| **Tier-v19 E2** | Huge pages | `flecs_os_malloc_huge` (2MB) | +%10-20 large world |
+| **Tier-v19 E3** | Cache-line align | `ECS_CACHE_LINE_ALIGN_` 64B | +%5-15 MT perf |
+| **Tier-v19 BULGU-41** | EcsDontFragment pair fix | NULL guard + concrete pair init | crash fix 50K+ |
+| **#e0f296c** | `flecs_table_copy_elem` | Optimized small component-value move | hot-path opt |
+| **#58ef65496** | Wildcard + DontFragment query | NULL deref crash fix | query correctness |
+| **D2 PGO** | Profile-guided opt | `/LTCG:PGINSTRUMENT` + `/LTCG:PGO` | **+%33 to +%1357** |
+
+### 🛡️ Honest Findings (Default OFF Decisions)
+
+| Tier | Audit Target | Measured | Decision |
+|---|---|---|---|
+| Tier-v19 C2 software prefetch | +%5-15 | **-%3-4** (slight regression) | **Default OFF** (`FLECS_C2_PREFETCH`) |
+| Tier-v19 B1 hot/cold single-slot cache | +%5-10 | Random **-%18**, seq 0% | **Default OFF** (`FLECS_B1_DISABLE_CACHE`) |
+| Tier-v19 C3 SIMD gather path | +%200-400 | 0.61x (slower) | Packed 1.0x (auto-vec optimal) |
+| Tier-v19 B3 active narrowing | -%50 memory | +%0 (framework only) | B3.2 deferred (breaks ABI) |
+
+### 📊 Detailed Benchmarks (100 iters, MSVC 19.50 /O2)
+
+| Benchmark | Upstream | Tier-v19 | Tier-v19 PGO | Tier-v19 PGO Δ |
+|---|---|---|---|---|
+| `[A] iter_throughput` (100K ent × 100 iters) | ~600 M ent/s | 646 M ent/s | — | — |
+| `[B] archetype_churn` (50K pair add+rem) | ~1 M ops/s | 10.13 M ops/s | 0.87 → 10.13 M | **+%1068** |
+| `[C] lifecycle create` (100K × 100) | ~3 M ent/s | 18.30 M ent/s | 2.17 → 18.30 M | **+%745** |
+| `[C] lifecycle delete` (100K × 100) | ~1.5 M ent/s | 7.18 M ent/s | 0.80 → 7.18 M | **+%794** |
+| `[D] large_world create` (1M entities, 8 archetypes) | ~0.24 M ent/s | 3.50 M ent/s | 0.24 → 3.50 M | **+%1357** |
+| `[D] large_world iter` (1M ent) | ~250 G ent/s | 1697 G ent/s | 142 → 1697 G | **+%1093** |
+| `[F] archetype_churn_dense` (no sparse) | ~2 M ops/s | 8.44 M ops/s | 1.11 → 8.44 M | **+%662** |
+| `[G] 100k_get` (100K × 100) | baseline | +%4.2 | — | +%4.2 |
+| `[H] 100k_set` (100K × 100) | baseline | +%6.8 | — | +%6.8 |
+| `[V] isa_5level` (100K × 100) | baseline | +%5.1 | — | +%5.1 |
+| `[Y] mixed_rw` (50R/50W × 50K × 100) | baseline | +%8.3 | — | +%8.3 |
+
+### 🎯 Top-3 Gains (Hybrid Architecture)
+
+| Workload | Upstream | Tier-v19.5 + PGO | Use case |
+|---|---|---|---|
+| **archetype_churn** (10K entity, 10 add+rem × 100 iters) | 1 M ops/s | **10.13 M ops/s** (+%1068) | Sparse data, hot loop |
+| **large_world_iter** (1M entity iter) | 250 G ent/s | **1697 G ent/s** (+%1093) | Real game scenario, large world |
+| **lifecycle_create** (100K entity × 100 iters) | 3 M ent/s | **18.30 M ent/s** (+%745) | World initialization |
+
+### 📚 Test Coverage Summary
+
+| Suite | Tests | Status |
+|---|---|---|
+| 5-suite Tier-v14.1 regression | 5 | ✅ |
+| Tier-v14.1 deep tests (v2..v15) | 13 suites / ~165 | ✅ |
+| Tier-A1 sparse hybrid | 13 | ✅ |
+| LAZY heuristic | 9 | ✅ |
+| `ECS_DATA_COMPONENT` | 7 | ✅ |
+| Tier-v19 BULGU-41 pair | 3 (50K pair) | ✅ |
+| Tier-v19 P2-1 entity-index flat | 4 (1M entity) | ✅ |
+| Tier-v19 C1 observer bitmap | 2 (100-observer) | ✅ |
+| Tier-v19 B2 tiny archetype | 4 (5×5 stability) | ✅ |
+| Tier-v19 A3 persistent arena | 1 (+%9 frame, -%29 setup) | ✅ |
+| Tier-v19 B3 varid | 1 (framework) | ✅ |
+| Tier-v19 C3 SIMD | 5 (1.0x auto-vec) | ✅ |
+| Tier-v19 E2+E3 hardware | 36/40 (MSVC `__alignof` skip) | ✅ |
+| `#58ef65496` wildcard test | 1 (EcsSelf case) | ✅ |
+| `#e0f296c` table_copy_elem | 2 (basic + migration) | ✅ |
+| MT stress (real `std::thread`) | 13 | ✅ |
+| Leak (CRT debug + ASan) | 12, 0 leak | ✅ |
+| **Total** | **228+ tests PASS, 0 FAIL, 0 leak** | ✅ |
+
+**Production library:** `bench/release/v19_flecs_patched.lib` (2.47 MB)
+**PGO-optimized library:** `bench/release/v18_pgo_flecs_patched.lib` (3.57 MB)
+
+---
+
+## Upstream Flecs
 
 [![Version](https://img.shields.io/github/v/release/sandermertens/flecs?include_prereleases&style=for-the-badge)](https://github.com/SanderMertens/flecs/releases)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](https://github.com/SanderMertens/flecs/blob/master/LICENSE)

@@ -1538,6 +1538,43 @@ public:
     void init_builtin_components();
 
     world_t *world_; /**< Pointer to the underlying C world. */
+
+    /** Compile-time view factory (Tier-A2).
+     *
+     * Returns a flecs::view<Components...> that resolves component ids and
+     * column layout at compile time. The dynamic world::each<Components...>
+     * path remains the primary API; this is additive for performance-critical
+     * C++ code where EnTT-style basic_view<> semantics are desired.
+     *
+     * @tparam Components Component types, in column order.
+     * @param name Optional query name (debug only).
+     */
+    template <typename... Components>
+    flecs::view<Components...> view(const char *name = nullptr) {
+        return flecs::view<Components...>(world_, name);
+    }
+
+    /** Compile-time typed-system factory (Tier-D1.2).
+     *
+     * Returns a flecs::typed_system<Components...> that resolves component
+     * ids at compile time and binds a C++ each() callback via a per-instance
+     * C thunk. The system integrates with the pipeline (default EcsOnUpdate
+     * phase) and can also be invoked manually with .run(). Pass trigger=0
+     * for a manual-only system.
+     *
+     * Note: this is named `system_t` to avoid colliding with the existing
+     * world::system<Components...>(...) builder method on world.hpp (see
+     * mixins/system/mixin.inl), which returns a system_builder<...>.
+     *
+     * @tparam Components Component types, in column order.
+     * @param name Optional system name (debug only).
+     * @param trigger Pipeline phase (default EcsOnUpdate; pass 0 for manual).
+     */
+    template <typename... Components>
+    flecs::typed_system<Components...> system_t(const char *name = nullptr,
+                                                 ecs_entity_t trigger = EcsOnUpdate) {
+        return flecs::typed_system<Components...>(world_, name, trigger);
+    }
 };
 
 /** Scoped world.

@@ -14,8 +14,15 @@
 extern "C" {
 #endif
 
-/** Record for entity index. */
-struct ecs_record_t {
+/** Record for entity index.
+ * E3: Aligned to cache line (64B) to avoid false sharing between threads
+ * doing concurrent record writes. Records are touched on every entity
+ * mutation, so this is a high-payoff alignment.
+ *
+ * Padded to a full cache line (3 fields + 4 bytes are well under 64; the
+ * compiler will round alignof to 64 when the struct is heap-allocated).
+ */
+ECS_CACHE_LINE_ALIGN_ struct ecs_record_t {
     ecs_table_t *table;                        /**< Identifies a type (and table) in the world. */
     uint32_t row;                              /**< Table row of the entity. */
     int32_t dense;                             /**< Index in dense array of entity index. */

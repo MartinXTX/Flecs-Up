@@ -9,6 +9,9 @@
 
 #include "private_api.h"
 #include <time.h>
+#if defined(ECS_TARGET_LINUX) || defined(ECS_TARGET_FREEBSD) || defined(ECS_TARGET_DARWIN)
+#include <sys/mman.h>
+#endif
 
 void ecs_os_api_impl(ecs_os_api_t *api);
 
@@ -669,5 +672,61 @@ const char* ecs_os_strerror(int err) {
     return error_str;
 #   else
     return strerror(err);
+#   endif
+}
+
+/* E2: Huge pages — large allocation path for archetype column data.
+ * On Windows we use VirtualAlloc with MEM_LARGE_PAGES (2MB pages) which
+ * eliminates TLB pressure for >1M-entity workloads. Falls back to
+ * regular malloc on failure (or when caller asks for tracked alloc).
+ * On Linux/FreeBSD we madvise(MADV_HUGEPAGE) — the kernel may
+ * transparently promote to 2MB pages.
+ *
+ * Only used when size >= FLECS_HUGE_PAGE_MIN (2MB). Below that, the
+ * syscall overhead dwarfs any TLB win.
+ */
+#define FLECS_HUGE_PAGE_MIN (2u * 1024u * 1024u)
+
+void* flecs_os_malloc_huge(ecs_size_t size) {
+    if (size < (ecs_size_t)FLECS_HUGE_PAGE_MIN) {
+        /* Small alloc — fall through to ordinary malloc. */
+        return NULL;
+    }
+#   if defined(ECS_TARGET_WINDOWS)
+    /* VirtualAlloc returns page-aligned memory. PAGE_READWRITE is rw.
+     * MEM_LARGE_PAGES requires SeLockMemoryPrivilege on Windows; if
+     * the process lacks the privilege the call fails and we fall back
+     * to ordinary malloc below.
+     */
+    void *p = VirtualAlloc(NULL, (SIZE_T)size,
+        MEM_COMMIT | MEM_RESERVE | MEM_LARGE_PAGES, PAGE_READWRITE);
+    if (p) return p;
+    /* Fallback: regular VirtualAlloc without large-page flag. */
+    return VirtualAlloc(NULL, (SIZE_T)size,
+        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#   elif defined(ECS_TARGET_LINUX) || defined(ECS_TARGET_FREEBSD) || defined(ECS_TARGET_DARWIN)
+    /* madvise(MADV_HUGEPAGE) hint — kernel may back with 2MB pages.
+     * Page-aligned allocation improves success rate.
+     */
+    size_t aligned = (size_t)ECS_ALIGN(size, 2u * 1024u * 1024u);
+    void *p = ecs_os_malloc((ecs_size_t)aligned);
+    if (p) {
+#       if defined(MADV_HUGEPAGE)
+        (void)madvise(p, aligned, MADV_HUGEPAGE);
+#       endif
+    }
+    return p;
+#   else
+    return NULL;
+#   endif
+}
+
+void flecs_os_free_huge(void *ptr, ecs_size_t size) {
+    if (!ptr) return;
+    (void)size;
+#   if defined(ECS_TARGET_WINDOWS)
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#   else
+    ecs_os_free(ptr);
 #   endif
 }

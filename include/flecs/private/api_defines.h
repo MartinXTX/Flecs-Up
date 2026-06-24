@@ -308,6 +308,34 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 
 #define ECS_ALIGN(size, alignment) (ecs_size_t)((((((size_t)size) - 1) / ((size_t)alignment)) + 1) * ((size_t)alignment))
 
+/* E3: Cache-line alignment. Modern x86 cache lines are 64 bytes; aligning
+ * hot structures (world, table, query, record) keeps each instance on its
+ * own cache line and eliminates false sharing between threads.
+ *
+ * Use ECS_CACHE_LINE_ALIGN_ before a struct declaration; the leading
+ *   __declspec(align(64))  /  __attribute__((aligned(64)))  /  _Alignas(64)
+ * forces natural alignment to 64. Pair with a `_ecs_pad` field at the end
+ * of the struct if you need the trailing bytes for adjacent objects.
+ *
+ * Off by default (FLECS_CACHE_LINE_ALIGN not defined) so the upstream API
+ * surface stays binary-compatible. The Tier-v18 build enables it.
+ */
+#ifndef FLECS_CACHE_LINE
+#define FLECS_CACHE_LINE 64
+#endif
+
+#if defined(ECS_TARGET_MSVC)
+#define ECS_CACHE_LINE_ALIGN_ __declspec(align(FLECS_CACHE_LINE))
+#elif defined(__cplusplus) && __cplusplus >= 201103L
+#define ECS_CACHE_LINE_ALIGN_ alignas(FLECS_CACHE_LINE)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define ECS_CACHE_LINE_ALIGN_ _Alignas(FLECS_CACHE_LINE)
+#elif defined(ECS_TARGET_GNU) || defined(ECS_TARGET_CLANG)
+#define ECS_CACHE_LINE_ALIGN_ __attribute__((aligned(FLECS_CACHE_LINE)))
+#else
+#define ECS_CACHE_LINE_ALIGN_
+#endif
+
 /* Simple utility for determining the max of two values. */
 #define ECS_MAX(a, b) (((a) > (b)) ? a : b)
 #define ECS_MIN(a, b) (((a) < (b)) ? a : b)
@@ -357,6 +385,48 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 #define ecs_query_t_magic     (0x65637375)
 #define ecs_observer_t_magic  (0x65637362)
 
+
+////////////////////////////////////////////////////////////////////////////////
+//// TIER-B3: Variable-size ID config (compile-time opt-in framework)
+////////////////////////////////////////////////////////////////////////////////
+
+/* TIER-B3 framework: opt-in compile-time config for entity ID sizing.
+ * Actual type narrowing is NOT auto-applied (would break ABI / API).
+ * This provides:
+ *   1. Compile-time size reporting via flecs_id_size_bits()
+ *   2. A warning if FLECS_TINY_IDS is enabled (developer must refactor
+ *      every ecs_id_t / ecs_entity_t to eid_t / cid_t manually).
+ *   3. Documentation of the option.
+ *
+ * The -%50 memory gain for record tables is "theoretical" until a full
+ * narrow refactor is performed (Tier-B3.2).  This tier only establishes
+ * the framework and reports the current size budget.
+ */
+
+#ifndef FLECS_TINY_IDS
+/* Reserved: when defined, future work would narrow eid_t to uint32_t.
+ * Currently emits a #pragma message.  Default undefined. */
+#endif
+
+/* Documented defaults.  These are informational only -- the actual types
+ * remain uint64_t until Tier-B3.2 performs a full narrow refactor. */
+#ifndef FLECS_ENTITY_INDEX_BITS_DEFAULT
+#define FLECS_ENTITY_INDEX_BITS_DEFAULT 32  /* 4-byte id possible */
+#endif
+#ifndef FLECS_COMPONENT_ID_BITS_DEFAULT
+#define FLECS_COMPONENT_ID_BITS_DEFAULT 64  /* 8-byte id required for pair/flags */
+#endif
+
+/* Runtime size reporter (defined in src/world.c).  Returns the bit-width
+ * of ecs_id_t at compile time.  Allows benchmarks and tests to verify
+ * size assumptions without conditional compilation. */
+FLECS_API
+int flecs_id_size_bits(void);
+
+FLECS_API
+int flecs_record_size(void);
+
+/* Compile-time size reporter: use as `flecs_id_size_bits()`. */
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Entity ID macros
